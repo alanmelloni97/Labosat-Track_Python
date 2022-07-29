@@ -20,16 +20,16 @@ def SatTrack(my_lat,my_lon,sat_name,mechanical_resolution,time_delta,elevation_s
         -time_delta: time between points
         -elevation_start: elevation angle to start calculating orbit
     Returns:
-        
+        -steps_df: dataframe returnde by Orbit2steps
+        -start_data: list returned by Orbit2steps
     '''
     sat=op.SelectSatFromName(sat_name)  #get satellite object
     print(sat_name)
     
     orbit_df=op.CalculateNextOrbit(sat, my_lat, my_lon, time_delta,24,elevation_start)   #get orbit dataframe
-    steps_df,start_df=Orbit2steps(orbit_df, mechanical_resolution) #convert orbit to steps and start values
+    steps_df,start_data=Orbit2steps(orbit_df, mechanical_resolution) #convert orbit to steps and start values
     steps_df.to_csv("csv/StepperSteps.csv") #generate csv with dataframe data
-    
-    return steps_df,start_df
+    return steps_df,start_data
 
 def Orbit2steps(orbit_df,mechanical_resolution):
     '''Brief: Calculate steps to make in each point by differenciating both angles.
@@ -41,13 +41,27 @@ def Orbit2steps(orbit_df,mechanical_resolution):
             -time: time point
             -elevation steps: amount of elevation steps to make in that point
             -azimuth steps: amount of azimuth steps to make in that point
-        -start: containing the following values:
-            
+        -start: list containing the following values:
+            -orbit_start: time point where orbit starts
+            -az_dir: azimuth direction (1: clockwise, -1: counterclockwise)
+            -azimuth_start: azimuth angle in orbit start
+            -elevation_start: elevation angle in orbit start
+            -elev_dir_change: time point where elevation changes direction
+            -mechanical_resolution: angle per step
         
     '''
+    #get start point time
+    orbit_start=orbit_df['Time'].iloc[0]
+    orbit_df['Time']-=orbit_start
     
+    #get elevation start angle
+    elevation_start=orbit_df['Elevation'].iloc[0]
     #get azimuth start angle 
     azimuth_start=orbit_df['Azimuth'].iloc[0]
+    
+    #get azimuth direction
+    az_dir=int(np.sign(orbit_df['dAz'].iloc[0]))
+    
     #convert azimuth start angle from (0,360) to (-180,180)
     if azimuth_start>180:
         azimuth_start-=360
@@ -65,7 +79,7 @@ def Orbit2steps(orbit_df,mechanical_resolution):
     
     dir_setted= False    #a boolean is used to know if the direction change in elevation happened
     
-    az_step_count,az_angle,alt_step_count,alt_angle=0,0,0,0 #initialize counters
+    az_step_count,az_angle,elev_step_count,elev_angle=0,0,0,0 #initialize counters
     
     #iterate over each orbit point
     for ind in tqdm(orbit_df.index):
@@ -86,25 +100,29 @@ def Orbit2steps(orbit_df,mechanical_resolution):
             az_angle=az_angle-mechanical_resolution
             orbit_df['Az Steps'][ind]+=1
     
-        alt_angle+=abs(orbit_df['dElev'][ind])
-        while alt_angle>=mechanical_resolution:
-            alt_step_count+=1
-            alt_angle=alt_angle-mechanical_resolution
+        elev_angle+=abs(orbit_df['dElev'][ind])
+        while elev_angle>=mechanical_resolution:
+            elev_step_count+=1
+            elev_angle=elev_angle-mechanical_resolution
             orbit_df['Elev Steps'][ind]+=1
        
         #evaluate if elevation derivative became negative, indicating a
         #direction change. If the point is the direction change, save its time
         if orbit_df['dElev'][ind]<0 and dir_setted==False:
-            alt_dir_change=orbit_df['Time'][ind]
+            elev_dir_change=orbit_df['Time'][ind]
             dir_setted=True
         
         #remove rows without steps
         if orbit_df['Steps'][ind]==0:
             orbit_df.drop([ind],axis=0,inplace=True)
     
-    start=()
-                
-    startData={'AzDir':int(np.sign(orbit_df['dAz'].iloc[0])),'Azimuth':azimuthStart,'Altitude':orbitDf['Altitude'].iloc[0],'AltDir Change':AltDirChange,'Stepper Res':stepperRes}
-    start_df = pd.DataFrame(startData,index=[0])
-    start_df.index.name="start"
-    return orbitDf,startDf
+    #Create list of start values
+    start_data=(orbit_start,az_dir,azimuth_start,elevation_start,elev_dir_change,mechanical_resolution)
+         
+    #remove irrelevant columns
+    orbit_df.drop(orbit_df.columns.difference(['Time','Elev Steps','Az Steps']), 1, inplace=True)
+    
+    return orbit_df,start_data
+
+
+def CompressOrbitData(steps_df,start_data,mechanical_resolution):
