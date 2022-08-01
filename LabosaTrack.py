@@ -1,13 +1,9 @@
 import orbit_prediction as op
-from skyfield.api import load, wgs84
-import time
-import datetime
 import pandas as pd
 import numpy as np
 pd.options.mode.chained_assignment = None  # default='warn'
 from tqdm import tqdm
-import serial
-import math
+import time, math
 
 def SatTrack(my_lat,my_lon,sat_name,time_delta,elevation_start):
     '''Brief: calculates satellite pass and returns two elements: a dataframe containing
@@ -32,30 +28,31 @@ def Orbit2steps(orbit_df,mechanical_resolution):
         -orbit_df: orbit containing time points, azimuth and elevation columns
         -mechanical_resolution: angle per step
     Returns:
-        -orbit_df: dataframe containing three columns:
-            -time: time point
-            -elevation steps: amount of elevation steps to make in that point
-            -azimuth steps: amount of azimuth steps to make in that point
-        -start: list containing the following values:
-            -orbit_start: time point where orbit starts
+        -steps_df: dataframe containing three columns:
+            -Time: time point in milliseconds
+            -Elev Steps: amount of elevation steps to make in that point
+            -Az Steps: amount of azimuth steps to make in that point
+        -start_data: list containing the following values:
+            -orbit_start: time point where orbit starts in milliseconds
+            -points_amount: amount of points
             -az_dir: azimuth direction (1: clockwise, -1: counterclockwise)
-            -azimuth_start: azimuth angle in orbit start
-            -elevation_start: elevation angle in orbit start
-            -elev_dir_change: time point where elevation changes direction
-            -mechanical_resolution: angle per step
-        
+            -azimuth_start: azimuth angle in orbit start in millidegrees
+            -elevation_start: elevation angle in orbit start in millidegrees
+            -elev_dir_change: time point where elevation changes direction in milliseconds
+            -mechanical_resolution: angle per step in millidegrees
     '''
-    #get start point time
-    orbit_start=orbit_df['Time'].iloc[0]
-    orbit_df['Time']-=orbit_start
+    #create orbit_df copy
+    steps_df=orbit_df.copy()
     
-    #get elevation start angle
-    elevation_start=orbit_df['Elevation'].iloc[0]
-    #get azimuth start angle 
-    azimuth_start=orbit_df['Azimuth'].iloc[0]
+    #get start point time in seconds (not taking milliseconds into account)
+    orbit_start=math.trunc(steps_df['Time'].iloc[0])
+    steps_df['Time']-=orbit_start
     
-    #get azimuth direction
-    az_dir=int(np.sign(orbit_df['dAz'].iloc[0]))
+    #Convert times to milliseconds (integer)
+    steps_df["Time"]=(steps_df["Time"]*1000).astype(int)
+    
+    #get azimuth start angle
+    azimuth_start=steps_df['Azimuth'].iloc[0]
     
     #convert azimuth start angle from (0,360) to (-180,180)
     if azimuth_start>180:
@@ -63,14 +60,22 @@ def Orbit2steps(orbit_df,mechanical_resolution):
     if azimuth_start<-180:
         azimuth_start+=360
         
+    #convert azimuth start to millidegrees
+    azimuth_start=int(azimuth_start*1000)
+    #get elevation start angle in millidegrees (integer)
+    elevation_start=int((steps_df['Elevation'].iloc[0])*1000)
+        
     #Calculate azimuth and elevation derivative
-    orbit_df['dElev'] = (orbit_df['Elevation'] - orbit_df['Elevation'].shift(1)).fillna(0)
-    orbit_df['dAz'] = (orbit_df['Azimuth'] - orbit_df['Azimuth'].shift(1)).fillna(0)
+    steps_df['dElev'] = (steps_df['Elevation'] - steps_df['Elevation'].shift(1)).fillna(0)
+    steps_df['dAz'] = (steps_df['Azimuth'] - steps_df['Azimuth'].shift(1)).fillna(0)
+    
+    #get azimuth direction
+    az_dir=int(np.sign(steps_df['dAz'].iloc[1]))
     
     #Initialize steps columns
-    orbit_df['Elev Steps']=0
-    orbit_df['Az Steps']=0
-    orbit_df.index.name="Index"  #set index name (irrelevant)
+    steps_df['Elev Steps']=0
+    steps_df['Az Steps']=0
+    steps_df.index.name="Index"  #set index name (irrelevant)
     
     dir_setted= False    #a boolean is used to know if the direction change in elevation happened
     
@@ -78,63 +83,128 @@ def Orbit2steps(orbit_df,mechanical_resolution):
     
     print("Calculating steps:")
     #iterate over each orbit point
-    for ind in tqdm(orbit_df.index):
+    for ind in tqdm(steps_df.index):
         
         #If azimuth angle changes from 0 to 359 or vice versa, a correction is made to the azimuth delta
-        if abs(orbit_df['dAz'][ind])>300:
-            if(orbit_df['dAz'][ind])>0:
-                orbit_df['dAz'][ind]-=360
-            if(orbit_df['dAz'][ind])<0:
-                orbit_df['dAz'][ind]+=360
+        if abs(steps_df['dAz'][ind])>300:
+            if(steps_df['dAz'][ind])>0:
+                steps_df['dAz'][ind]-=360
+            if(steps_df['dAz'][ind])<0:
+                steps_df['dAz'][ind]+=360
            
         #evaluate if azimuth acumulated angle is greater than the angle per step
         # if it is, add a step to the step column and substract the angle per step
         #repeat until az_angle is smaller than the angle per step
-        az_angle+=abs(orbit_df['dAz'][ind]) 
-        while az_angle>=mechanical_resolution:
+        az_angle += abs(steps_df['dAz'][ind]) 
+        while az_angle >= mechanical_resolution:
             az_step_count+=1
             az_angle=az_angle-mechanical_resolution
-            orbit_df['Az Steps'][ind]+=1
+            steps_df['Az Steps'][ind]+=1
     
-        elev_angle+=abs(orbit_df['dElev'][ind])
-        while elev_angle>=mechanical_resolution:
+        elev_angle += abs(steps_df['dElev'][ind])
+        while elev_angle >= mechanical_resolution:
             elev_step_count+=1
             elev_angle=elev_angle-mechanical_resolution
-            orbit_df['Elev Steps'][ind]+=1
+            steps_df['Elev Steps'][ind]+=1
        
         #evaluate if elevation derivative became negative, indicating a
         #direction change. If the point is the direction change, save its time
-        if orbit_df['dElev'][ind]<0 and dir_setted==False:
-            elev_dir_change=orbit_df['Time'][ind]
+        if steps_df['dElev'][ind] < 0 and dir_setted == False:
+            elev_dir_change=steps_df['Time'][ind]
             dir_setted=True
         
         #remove rows without steps
-        if orbit_df['Steps'][ind]==0:
-            orbit_df.drop([ind],axis=0,inplace=True)
+        if steps_df['Az Steps'][ind] == 0 and steps_df['Elev Steps'][ind] == 0:
+            steps_df.drop([ind],axis=0,inplace=True)
     
     #Create list of start values
-    start_data=(orbit_start,az_dir,azimuth_start,elevation_start,elev_dir_change,mechanical_resolution)
+    points_amount=len(steps_df["Time"])
+    start_data=(orbit_start, points_amount, az_dir,azimuth_start,elevation_start,elev_dir_change,int(mechanical_resolution*1000))
          
     #remove irrelevant columns
-    orbit_df.drop(orbit_df.columns.difference(['Time','Elev Steps','Az Steps']), 1, inplace=True)
+    steps_df.drop(steps_df.columns.difference(['Time','Elev Steps','Az Steps']), axis=1, inplace=True)
     
-    return orbit_df,start_data
+    return steps_df,start_data
     
 
-def CompressOrbitData(steps_df,start_data,mechanical_resolution):
-    '''Brief: compresses all information of a point  in 32 bits
+def CompressOrbitData(steps_df):
+    '''Brief: compresses all information of a point in 32 bits
     Parameters:
         -steps_df: dataframe containing orbit times and steps
-        -start_data: list containing start values
-        -mechanical_resolution: angles per step
     Returns:
         -points_df: dataframe containing a single column with times and steps
     '''
-    points_df = pd.DataFrame(columns="points")
-    aux_df = pd.DataFrame(columns="points")
+    points_df = []    #create empty list
     
-    print("Compressing steps")
-    for ind in tqdm(points_df.index):
-        aux_df["points"] = steps_df["Time"] << 8 | steps_df["Az steps"] << 4 | steps_df["Elev steps"]
-        points_df = pd.concat([points_df, aux_df], ignore_index = True, axis = 0)
+    print("Compressing steps:")
+    for ind in tqdm(steps_df.index):    #iterate dataframe
+        value = int(steps_df["Time"][ind] << 8 | steps_df["Az Steps"][ind] << 4 | steps_df["Elev Steps"][ind]) #create a single int with bit displacement, bits 3-0: Elev steps, bits 7-4: Az steps, bits 31-8: time
+        points_df.append(value)   #add value to list
     return points_df
+
+
+def SerialSend(serial_device,points,start_data,alarm_offset):
+    '''Brief: Rutine that sends all data through serial port
+    Parameters:
+        -serial_device: serial object
+        -points: list containing data to be sent
+        -start_data: list contaning values returned by Orbit2Steps
+        -alarm_offset: alarm offset in seconds
+    '''
+    def TxSerial(Txdata):
+        serial_device.write(Txdata.to_bytes(4,"big"))
+        
+    def TxSerial_atoi(Txdata,dataSize):
+        Tx=str(Txdata).encode()
+        Tx+=bytes(dataSize-len(Tx))
+        serial_device.write(Tx)
+        
+    print("Start serial transfer:")
+    
+    n, cont = 0, 0
+    serial_device.write(b'\x01')
+    while True:
+        while serial_device.read(1)!=b'\x01':
+            True
+        if n==0:
+            # current time
+            now=time.time()
+            while(time.time() < math.trunc(now)+1):
+                True
+            t=math.trunc(time.time())
+            TxSerial(t)
+            print("current time:",op.GetDatetimeFromUNIX(t))
+            
+        elif n==1:
+            #Send alarm time: orbit start - alarm offset
+            t=start_data[0]-alarm_offset
+            TxSerial(t)
+            print("alarm time:",op.GetDatetimeFromUNIX(t))
+            
+        elif n==3:
+            #Send amount of points, elevation start angle, elevation direction change and mechanical resolution
+            TxSerial(start_data[1])
+            TxSerial(start_data[4])
+            TxSerial(start_data[5])
+            TxSerial(start_data[6])
+            
+        elif n==4:
+            #Send azimuth direction and start angle
+            TxSerial_atoi(start_data[2],4)
+            TxSerial_atoi(start_data[3],7)
+            #this values are sent separately because of their possible negative sign, as they are send as chars
+           
+        elif n==5:
+            #send points
+            for i in points:
+                cont+=1
+                if(cont!=0 and cont % 1000 == 0):
+                    print(cont)
+                    while serial_device.read(1)!=b'\x01':
+                        True        
+                TxSerial(i)
+                i+=1
+            break
+        
+        #increment state variable
+        n+=1

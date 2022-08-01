@@ -155,17 +155,17 @@ def PredictOrbit(sat,my_lat,my_lon,start_time_unix,period_seconds,time_delta,sav
             -Azimuth: satellite's azimuth
             -Distance: distance between satellite and observer
     '''
-    print("calculating orbit...",flush=True)
+    print("calculating orbit:",flush=True)
     df = pd.DataFrame(columns=["Time","Latitude","Longitude","Height","Altitude","Azimuth","Distance"]) #initialize dataframe
 
-    for i in tqdm(range(0,period_seconds/time_delta)): #iterate for amount of points desired: amount_seconds* time_delta
+    for i in tqdm(range(0,int(period_seconds/time_delta))): #iterate for amount of points desired: amount_seconds* time_delta
         IterationTime = start_time_unix+datetime.timedelta(seconds=i*time_delta)    #Get iteration time
         lat,lon,hei = SGP4(sat, IterationTime) #get satellite's latitude, longitude and height
         alt,az,distance = GetSatElevAzDist(sat, my_lat, my_lon, IterationTime) #get satellite's elevation, azimuth and distance
         df2=pd.DataFrame( \
             [[round(IterationTime.utc_datetime().timestamp(),3),lat.degrees,lon.degrees,hei,alt.degrees,az.degrees,distance.km]], \
             index=[i], \
-            columns=["Time","Latitude","Longitude","Height","Altitude","Azimuth","Distance"]) #save values in an auxiliary one row dataframe
+            columns=["Time","Latitude","Longitude","Height","Elevation","Azimuth","Distance"]) #save values in an auxiliary one row dataframe
         df=pd.concat([df,df2]) #merge (concatenate) both dataframes
     if save_csv == True:
         df.to_csv("csv/trackedOrbit.csv")   #save dataframe as .csv
