@@ -7,7 +7,7 @@ sat_name="ISS (ZARYA)"
 time_delta=1 #seconds
 elevation_start=10 #degrees
 mechanical_resolution=0.9/16
-ALARM_OFFSET_SECONDS=60
+
 
 try:
     serial_device=serial.Serial(port='COM9', baudrate=9600,stopbits=1,timeout=1,write_timeout=1)
@@ -19,4 +19,4 @@ orbit = lst.SatTrack(my_lat, my_lon, sat_name, time_delta, elevation_start)
 steps,start_data = lst.Orbit2steps(orbit, mechanical_resolution)
 compressed_steps = lst.CompressOrbitData(steps)
 
-lst.SerialSend(serial_device,compressed_steps,start_data,ALARM_OFFSET_SECONDS)
+lst.SerialSend(serial_device,compressed_steps,start_data)

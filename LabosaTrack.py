@@ -33,7 +33,7 @@ def Orbit2steps(orbit_df,mechanical_resolution):
             -Elev Steps: amount of elevation steps to make in that point
             -Az Steps: amount of azimuth steps to make in that point
         -start_data: list containing the following values:
-            -orbit_start: time point where orbit starts in milliseconds
+            -orbit_start: time point where orbit starts in seconds
             -points_amount: amount of points
             -az_dir: azimuth direction (1: clockwise, -1: counterclockwise)
             -azimuth_start: azimuth angle in orbit start in millidegrees
@@ -143,13 +143,12 @@ def CompressOrbitData(steps_df):
     return points_df
 
 
-def SerialSend(serial_device,points,start_data,alarm_offset):
+def SerialSend(serial_device,points,start_data):
     '''Brief: Rutine that sends all data through serial port
     Parameters:
         -serial_device: serial object
         -points: list containing data to be sent
         -start_data: list contaning values returned by Orbit2Steps
-        -alarm_offset: alarm offset in seconds
     '''
     def TxSerial(Txdata):
         serial_device.write(Txdata.to_bytes(4,"big"))
@@ -176,25 +175,25 @@ def SerialSend(serial_device,points,start_data,alarm_offset):
             print("current time:",op.GetDatetimeFromUNIX(t))
             
         elif n==1:
-            #Send alarm time: orbit start - alarm offset
-            t=start_data[0]-alarm_offset
+            #Send alarm time
+            t=start_data[0]
             TxSerial(t)
             print("alarm time:",op.GetDatetimeFromUNIX(t))
             
-        elif n==3:
+        elif n==2:
             #Send amount of points, elevation start angle, elevation direction change and mechanical resolution
             TxSerial(start_data[1])
             TxSerial(start_data[4])
             TxSerial(start_data[5])
             TxSerial(start_data[6])
             
-        elif n==4:
+        elif n==3:
             #Send azimuth direction and start angle
             TxSerial_atoi(start_data[2],4)
             TxSerial_atoi(start_data[3],7)
             #this values are sent separately because of their possible negative sign, as they are send as chars
            
-        elif n==5:
+        elif n==4:
             #send points
             for i in points:
                 cont+=1
