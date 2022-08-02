@@ -110,7 +110,7 @@ def Orbit2steps(orbit_df,mechanical_resolution):
         #evaluate if elevation derivative became negative, indicating a
         #direction change. If the point is the direction change, save its time
         if steps_df['dElev'][ind] < 0 and dir_setted == False:
-            elev_dir_change=steps_df['Time'][ind]
+            elev_dir_change=int(steps_df['Time'][ind])
             dir_setted=True
         
         #remove rows without steps
@@ -157,6 +157,7 @@ def SerialSend(serial_device,points,start_data):
         Tx=str(Txdata).encode()
         Tx+=bytes(dataSize-len(Tx))
         serial_device.write(Tx)
+        print(Tx)
         
     print("Start serial transfer:")
     
@@ -164,7 +165,8 @@ def SerialSend(serial_device,points,start_data):
     serial_device.write(b'\x01')
     while True:
         while serial_device.read(1)!=b'\x01':
-            True
+            serial_device.write(b'\x01')
+            time.sleep(0.5)
         if n==0:
             # current time
             now=time.time()
@@ -172,16 +174,17 @@ def SerialSend(serial_device,points,start_data):
                 True
             t=math.trunc(time.time())
             TxSerial(t)
-            print("current time:",op.GetDatetimeFromUNIX(t))
+            print("current time:",t, op.GetDatetimeFromUNIX(t))
             
         elif n==1:
             #Send alarm time
             t=start_data[0]
             TxSerial(t)
-            print("alarm time:",op.GetDatetimeFromUNIX(t))
+            print("alarm time:",t, op.GetDatetimeFromUNIX(t))
             
         elif n==2:
             #Send amount of points, elevation start angle, elevation direction change and mechanical resolution
+            print(start_data)
             TxSerial(start_data[1])
             TxSerial(start_data[4])
             TxSerial(start_data[5])

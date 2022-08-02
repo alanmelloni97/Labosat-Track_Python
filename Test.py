@@ -10,7 +10,7 @@ mechanical_resolution=0.9/16
 
 
 try:
-    serial_device=serial.Serial(port='COM9', baudrate=9600,stopbits=1,timeout=1,write_timeout=1)
+    serial_device=serial.Serial(port='COM8', baudrate=9600,stopbits=1,timeout=1,write_timeout=1)
 except:
     print("ERROR: Couldn't connect to serial port")
     sys.exit()
