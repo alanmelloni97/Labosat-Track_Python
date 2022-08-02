@@ -165,8 +165,7 @@ def SerialSend(serial_device,points,start_data):
     serial_device.write(b'\x01')
     while True:
         while serial_device.read(1)!=b'\x01':
-            serial_device.write(b'\x01')
-            time.sleep(0.5)
+            True
         if n==0:
             # current time
             now=time.time()
