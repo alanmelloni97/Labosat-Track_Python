@@ -15,7 +15,7 @@ def SatTrack(my_lat,my_lon,sat_name,time_delta,elevation_start):
         -time_delta: time between points
         -elevation_start: elevation angle to start calculating orbit
     Returns:
-        -orbit_df: dataframe containing orbit information (returned by CalculateNextOrbit)
+        -orbit_df: dataframe containing orbit information (returned by op.CalculateNextOrbit)
     '''
     sat=op.SelectSatFromName(sat_name)  #get satellite object
     orbit_df=op.CalculateNextOrbit(sat, my_lat, my_lon, time_delta,24,elevation_start)   #get orbit dataframe
@@ -114,15 +114,15 @@ def Orbit2steps(orbit_df,mechanical_resolution):
             dir_setted=True
         
         #remove rows without steps
-        if steps_df['Az Steps'][ind] == 0 and steps_df['Elev Steps'][ind] == 0:
-            steps_df.drop([ind],axis=0,inplace=True)
+        # if steps_df['Az Steps'][ind] == 0 and steps_df['Elev Steps'][ind] == 0:
+        #     steps_df.drop([ind],axis=0,inplace=True)
     
     #Create list of start values
     points_amount=len(steps_df["Time"])
     start_data=(orbit_start, points_amount, az_dir,azimuth_start,elevation_start,elev_dir_change,int(mechanical_resolution*1000))
          
     #remove irrelevant columns
-    steps_df.drop(steps_df.columns.difference(['Time','Elev Steps','Az Steps']), axis=1, inplace=True)
+    # steps_df.drop(steps_df.columns.difference(['Time','Elev Steps','Az Steps']), axis=1, inplace=True)
     
     return steps_df,start_data
     
@@ -157,17 +157,17 @@ def SerialSend(serial_device,points,start_data):
         Tx=str(Txdata).encode()
         Tx+=bytes(dataSize-len(Tx))
         serial_device.write(Tx)
-        print(Tx)
         
-    print("Start serial transfer:")
+    print("Starting serial transfer:")
     
     n, cont = 0, 0
     serial_device.write(b'\x01')
     while True:
-        while serial_device.read(1)!=b'\x01':
+        while serial_device.read(1) != b'\x01':
             True
         if n==0:
             # current time
+            print("Sending data:")
             now=time.time()
             while(time.time() < math.trunc(now)+1):
                 True
@@ -184,15 +184,15 @@ def SerialSend(serial_device,points,start_data):
         elif n==2:
             #Send amount of points, elevation start angle, elevation direction change and mechanical resolution
             print(start_data)
-            TxSerial(start_data[1])
-            TxSerial(start_data[4])
-            TxSerial(start_data[5])
-            TxSerial(start_data[6])
+            TxSerial(start_data[1]) #amount of points
+            TxSerial(start_data[4]) #elevation start angle
+            TxSerial(start_data[5]) #elevation direction change
+            TxSerial(start_data[6]) #resolution
             
         elif n==3:
             #Send azimuth direction and start angle
-            TxSerial_atoi(start_data[2],4)
-            TxSerial_atoi(start_data[3],7)
+            TxSerial_atoi(start_data[2],4)  #azimuth direction
+            TxSerial_atoi(start_data[3],7)  #azimuth start angle
             #this values are sent separately because of their possible negative sign, as they are send as chars
            
         elif n==4:
@@ -200,12 +200,21 @@ def SerialSend(serial_device,points,start_data):
             for i in points:
                 cont+=1
                 if(cont!=0 and cont % 1000 == 0):
-                    print(cont)
-                    while serial_device.read(1)!=b'\x01':
-                        True        
+                    print("points send:", cont)
+                    while serial_device.read(1) != b'\x01':
+                        True
+                        
                 TxSerial(i)
                 i+=1
             break
-        
+
         #increment state variable
         n+=1
+    Rx = serial_device.read(1)
+    if(Rx == b'\x01'):
+        print("Data stored in EEPROM succesfully")
+    elif(Rx ==b'\x02'):
+        print("Data could not be stored in EEPROM, maybe EEPROM is disconnected or corrupted?")
+    else:
+        print("unknown sequence reached, debug needed")
+            

@@ -156,7 +156,7 @@ def PredictOrbit(sat,my_lat,my_lon,start_time_unix,period_seconds,time_delta,sav
             -Distance: distance between satellite and observer
     '''
     print("calculating orbit:",flush=True)
-    df = pd.DataFrame(columns=["Time","Latitude","Longitude","Height","Altitude","Azimuth","Distance"]) #initialize dataframe
+    df = pd.DataFrame(columns=["Time","Latitude","Longitude","Height","Elevation","Azimuth","Distance"]) #initialize dataframe
 
     for i in tqdm(range(0,int(period_seconds/time_delta))): #iterate for amount of points desired: amount_seconds* time_delta
         IterationTime = start_time_unix+datetime.timedelta(seconds=i*time_delta)    #Get iteration time
