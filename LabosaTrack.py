@@ -200,12 +200,13 @@ def SerialSend(serial_device,points,start_data):
             for i in points:
                 cont+=1
                 if(cont!=0 and cont % 1000 == 0):
-                    print("points send:", cont)
+                    print("points send:", cont, "/",start_data[1])
                     while serial_device.read(1) != b'\x01':
                         True
                         
                 TxSerial(i)
                 i+=1
+            print("points send:", start_data[1], "/",start_data[1])
             break
 
         #increment state variable
