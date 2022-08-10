@@ -7,7 +7,7 @@ my_lon=-58.5
 sat_name="MAROC-TUBSAT"
 time_delta=0.4 #seconds
 elevation_start=0 #degrees
-mechanical_resolution=0.05
+mechanical_resolution = 0.056
 mode = 1
 
 if(mode!=2):

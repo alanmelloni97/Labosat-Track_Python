@@ -22,11 +22,12 @@ def SatTrack(my_lat,my_lon,sat_name,time_delta,elevation_start):
     
     return orbit_df
 
-def Orbit2steps(orbit_df,mechanical_resolution):
+def Orbit2steps(orbit_df, az_resolution, elev_resolution):
     '''Brief: Calculate steps to make in each point by differenciating both angles.
     Parameters:
         -orbit_df: orbit containing time points, azimuth and elevation columns
-        -mechanical_resolution: angle per step
+        -az_resolution: azimutal angle [°] per step
+        -elev_resolution: elevation angle [°] per step
     Returns:
         -steps_df: dataframe containing three columns:
             -Time: time point in milliseconds
@@ -36,95 +37,98 @@ def Orbit2steps(orbit_df,mechanical_resolution):
             -orbit_start: time point where orbit starts in seconds
             -points_amount: amount of points
             -az_dir: azimuth direction (1: clockwise, -1: counterclockwise)
-            -azimuth_start: azimuth angle in orbit start in millidegrees
-            -elevation_start: elevation angle in orbit start in millidegrees
+            -start_az_steps: steps needed to orient system to starting azimuth angle
+            -start_az_steps: steps needed to orient system to starting elevation angle
             -elev_dir_change: time point where elevation changes direction in milliseconds
-            -mechanical_resolution: angle per step in millidegrees
     '''
     #create orbit_df copy
-    steps_df=orbit_df.copy()
+    steps_df = orbit_df.copy()
     
     #get start point time in seconds (not taking milliseconds into account)
-    orbit_start=math.trunc(steps_df['Time'].iloc[0])
-    steps_df['Time']-=orbit_start
+    orbit_start = math.trunc(steps_df['Time'].iloc[0])
+    steps_df['Time'] -= orbit_start
     
     #Convert times to milliseconds (integer)
-    steps_df["Time"]=(steps_df["Time"]*1000).astype(int)
+    steps_df["Time"] = (steps_df["Time"]*1000).astype(int)
     
-    #get azimuth start angle
-    azimuth_start=steps_df['Azimuth'].iloc[0]
+    #get azimuth and elevation start angle
+    azimuth_start = steps_df['Azimuth'].iloc[0]
+    elevation_start = steps_df['Elevation'].iloc[0]
     
     #convert azimuth start angle from (0,360) to (-180,180)
-    if azimuth_start>180:
-        azimuth_start-=360
-    if azimuth_start<-180:
-        azimuth_start+=360
-        
-    #convert azimuth start to millidegrees
-    azimuth_start=int(azimuth_start*1000)
-    #get elevation start angle in millidegrees (integer)
-    elevation_start=int((steps_df['Elevation'].iloc[0])*1000)
+    if azimuth_start > 180:
+        azimuth_start -= 360
+    if azimuth_start <- 180:
+        azimuth_start += 360
+    
+    #convert azimuth and elevation start angle to steps
+    start_az_steps, start_elev_steps = 0, 0
+    while(azimuth_start > az_resolution):
+        azimuth_start -= start_az_steps
+        start_az_steps += 1
+    while(elevation_start > elev_resolution):
+        elevation_start -= start_elev_steps
+        start_elev_steps += 1
+
         
     #Calculate azimuth and elevation derivative
     steps_df['dElev'] = (steps_df['Elevation'] - steps_df['Elevation'].shift(1)).fillna(0)
     steps_df['dAz'] = (steps_df['Azimuth'] - steps_df['Azimuth'].shift(1)).fillna(0)
     
     #get azimuth direction
-    az_dir=int(np.sign(steps_df['dAz'].iloc[1]))
+    az_dir = int(np.sign(steps_df['dAz'].iloc[1]))
     
     #Initialize steps columns
-    steps_df['Elev Steps']=0
-    steps_df['Az Steps']=0
-    steps_df.index.name="Index"  #set index name (irrelevant)
+    steps_df['Elev Steps'] = 0
+    steps_df['Az Steps'] = 0
+    steps_df.index.name = "Index"  #set index name (irrelevant)
     
-    dir_setted= False    #a boolean is used to know if the direction change in elevation happened
+    dir_setted = False    #a boolean is used to know if the direction change in elevation has happened
     
-    az_step_count,az_angle,elev_step_count,elev_angle=0,0,0,0 #initialize counters
+    az_angle, elev_angle = 0, 0 #initialize counters
     
     print("Calculating steps:")
     #iterate over each orbit point
     for ind in tqdm(steps_df.index):
         
         #If azimuth angle changes from 0 to 359 or vice versa, a correction is made to the azimuth delta
-        if abs(steps_df['dAz'][ind])>300:
-            if(steps_df['dAz'][ind])>0:
-                steps_df['dAz'][ind]-=360
-            if(steps_df['dAz'][ind])<0:
-                steps_df['dAz'][ind]+=360
+        if abs(steps_df['dAz'][ind]) > 300:
+            if(steps_df['dAz'][ind]) > 0:
+                steps_df['dAz'][ind] -= 360
+            if(steps_df['dAz'][ind]) < 0:
+                steps_df['dAz'][ind] += 360
            
         #evaluate if azimuth acumulated angle is greater than the angle per step
         # if it is, add a step to the step column and substract the angle per step
         #repeat until az_angle is smaller than the angle per step
         az_angle += abs(steps_df['dAz'][ind]) 
-        while az_angle >= mechanical_resolution:
-            az_step_count+=1
-            az_angle=az_angle-mechanical_resolution
-            steps_df['Az Steps'][ind]+=1
+        while az_angle >= az_resolution:
+            az_angle=az_angle-az_resolution
+            steps_df['Az Steps'][ind] += 1
     
         elev_angle += abs(steps_df['dElev'][ind])
-        while elev_angle >= mechanical_resolution:
-            elev_step_count+=1
-            elev_angle=elev_angle-mechanical_resolution
-            steps_df['Elev Steps'][ind]+=1
+        while elev_angle >= elev_resolution:
+            elev_angle = elev_angle-elev_resolution
+            steps_df['Elev Steps'][ind] += 1
        
         #evaluate if elevation derivative became negative, indicating a
         #direction change. If the point is the direction change, save its time
         if steps_df['dElev'][ind] < 0 and dir_setted == False:
-            elev_dir_change=int(steps_df['Time'][ind])
-            dir_setted=True
+            elev_dir_change = int(steps_df['Time'][ind])
+            dir_setted = True
         
         #remove rows without steps
-        # if steps_df['Az Steps'][ind] == 0 and steps_df['Elev Steps'][ind] == 0:
-        #     steps_df.drop([ind],axis=0,inplace=True)
+        if steps_df['Az Steps'][ind] == 0 and steps_df['Elev Steps'][ind] == 0:
+            steps_df.drop([ind],axis=0,inplace=True)
     
     #Create list of start values
-    points_amount=len(steps_df["Time"])
-    start_data=(orbit_start, points_amount, az_dir,azimuth_start,elevation_start,elev_dir_change,int(mechanical_resolution*1000))
+    points_amount = len(steps_df["Time"])
+    start_data = (orbit_start, points_amount, az_dir,start_az_steps,start_elev_steps, elev_dir_change)
          
     #remove irrelevant columns
-    # steps_df.drop(steps_df.columns.difference(['Time','Elev Steps','Az Steps']), axis=1, inplace=True)
+    steps_df.drop(steps_df.columns.difference(['Time','Elev Steps','Az Steps']), axis=1, inplace=True)
     
-    return steps_df,start_data
+    return steps_df, start_data
     
 
 def CompressOrbitData(steps_df):
@@ -187,7 +191,6 @@ def SerialSend(serial_device,points,start_data):
             TxSerial(start_data[1]) #amount of points
             TxSerial(start_data[4]) #elevation start angle
             TxSerial(start_data[5]) #elevation direction change
-            TxSerial(start_data[6]) #resolution
             
         elif n==3:
             #Send azimuth direction and start angle
