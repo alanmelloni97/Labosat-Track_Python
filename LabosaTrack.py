@@ -62,13 +62,8 @@ def Orbit2steps(orbit_df, az_resolution, elev_resolution):
         azimuth_start += 360
     
     #convert azimuth and elevation start angle to steps
-    start_az_steps, start_elev_steps = 0, 0
-    while(azimuth_start > az_resolution):
-        azimuth_start -= start_az_steps
-        start_az_steps += 1
-    while(elevation_start > elev_resolution):
-        elevation_start -= start_elev_steps
-        start_elev_steps += 1
+    start_az_steps = int(azimuth_start / az_resolution)
+    start_elev_steps = int(elevation_start / elev_resolution)
 
         
     #Calculate azimuth and elevation derivative
@@ -123,7 +118,7 @@ def Orbit2steps(orbit_df, az_resolution, elev_resolution):
     
     #Create list of start values
     points_amount = len(steps_df["Time"])
-    start_data = (orbit_start, points_amount, az_dir,start_az_steps,start_elev_steps, elev_dir_change)
+    start_data = (orbit_start, points_amount, az_dir, start_az_steps, start_elev_steps, elev_dir_change)
          
     #remove irrelevant columns
     steps_df.drop(steps_df.columns.difference(['Time','Elev Steps','Az Steps']), axis=1, inplace=True)

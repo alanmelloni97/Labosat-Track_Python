@@ -6,8 +6,10 @@ my_lat=-34.54
 my_lon=-58.5
 sat_name="MAROC-TUBSAT"
 time_delta=0.4 #seconds
-elevation_start=0 #degrees
-mechanical_resolution = 0.056
+elevation_start = 10 #degrees
+az_resolution = 0.05
+elev_resolution = 0.05
+
 mode = 1
 
 if(mode!=2):
@@ -20,7 +22,7 @@ if(mode!=2):
 if(mode==0 or mode== 2):
     #### 0 Calculate ISS pass 
     orbit = lst.SatTrack(my_lat, my_lon, sat_name, time_delta, elevation_start)
-    steps,start_data = lst.Orbit2steps(orbit, mechanical_resolution)
+    steps,start_data = lst.Orbit2steps(orbit, az_resolution, elev_resolution)
     compressed_steps = lst.CompressOrbitData(steps)
     
 
@@ -32,7 +34,7 @@ if(mode==1):
     sat = op.NextSatPass(TLEs,my_lat,my_lon,10, 70)
     print(sat.name)
     orbit = lst.SatTrack(my_lat, my_lon, sat.name, time_delta, elevation_start)
-    steps,start_data = lst.Orbit2steps(orbit, mechanical_resolution)
+    steps,start_data = lst.Orbit2steps(orbit, az_resolution, elev_resolution)
     compressed_steps = lst.CompressOrbitData(steps)
     
     lst.SerialSend(serial_device,compressed_steps,start_data)
