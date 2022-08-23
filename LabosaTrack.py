@@ -182,13 +182,20 @@ def SerialSend(serial_device,points,start_data):
             
         elif n==2:
             #Send amount of points, elevation start angle, elevation direction change and mechanical resolution
-            print(start_data)
+            print("amount of points: ",start_data[1])
+            print("elevation start angle: ",start_data[4])
+            print("elevation direction change: ",start_data[5])
+
             TxSerial(start_data[1]) #amount of points
             TxSerial(start_data[4]) #elevation start angle
             TxSerial(start_data[5]) #elevation direction change
             
         elif n==3:
             #Send azimuth direction and start angle
+            print("azimut direction ",start_data[2])
+            print("azimuth start angle: ",start_data[3])
+
+            
             TxSerial_atoi(start_data[2],4)  #azimuth direction
             TxSerial_atoi(start_data[3],7)  #azimuth start angle
             #this values are sent separately because of their possible negative sign, as they are send as chars

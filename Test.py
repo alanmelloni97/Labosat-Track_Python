@@ -4,8 +4,8 @@ import serial, sys
 
 my_lat=-34.54
 my_lon=-58.5
-sat_name="MAROC-TUBSAT"
-time_delta=0.4 #seconds
+sat_name="NUSAT-7 (SOPHIE)"
+time_delta = 1 #seconds
 elevation_start = 10 #degrees
 az_resolution = 0.05
 elev_resolution = 0.05
